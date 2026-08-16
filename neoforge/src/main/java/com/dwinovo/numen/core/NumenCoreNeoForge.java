@@ -31,11 +31,6 @@ public class NumenCoreNeoForge {
     public NumenCoreNeoForge(IEventBus eventBus, ModContainer container) {
         NumenCore.init();
 
-        // 社交性格配置:config/numen/social.json ({"<uuid>": "tsun"|"gentle"|"default"})
-        com.dwinovo.numen.core.social.SocialReactions.loadConfig(
-                net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()
-                        .resolve("numen").resolve("social.json"));
-
         NeoForge.EVENT_BUS.addListener(NumenCoreNeoForge::onServerTickPost);
         // 玩家动作 → 社交信号(事件式):右键点同伴 = 送东西/搭话;攻击同伴 = 冒犯。
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.EntityInteract e) -> {

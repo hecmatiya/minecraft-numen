@@ -1,6 +1,5 @@
 package com.dwinovo.numen.core.task.chain;
 
-import com.dwinovo.numen.core.social.SocialMotion;
 import com.dwinovo.numen.core.social.SocialReactions;
 import com.dwinovo.numen.core.social.SocialReactions.Motion;
 import com.dwinovo.numen.core.social.SocialSignals;
@@ -56,10 +55,8 @@ public final class SocialChain implements TaskChain, Reflex {
     @Override
     public void tick(NumenPlayer companion) {
         long now = companion.level().getGameTime();
-        // 平滑转头每 tick 驱动(有目标才动,无目标空转)。
-        SocialMotion.tickLook(companion);
         if (current == null) {
-            Kind kind = SocialSignals.consumeReaction(companion.getUUID(), now);
+            Kind kind = SocialSignals.consume(companion.getUUID(), now);
             if (kind == null) {
                 return;
             }
