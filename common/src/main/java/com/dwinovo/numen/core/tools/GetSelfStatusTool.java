@@ -96,6 +96,11 @@ public final class GetSelfStatusTool implements NumenTool {
         JsonArray items = new JsonArray();
         int used = 0;
         for (int i = 0; i < inv.getContainerSize(); i++) {
+            // 26.1 背包容器含装备槽(盔甲/副手),跳过——equipment 已单独输出,
+            // 否则穿着的装备会重复出现(小爱会把一套铁装看成两套)。
+            if (net.minecraft.world.entity.player.Inventory.EQUIPMENT_SLOT_MAPPING.containsKey(i)) {
+                continue;
+            }
             ItemStack s = inv.getItem(i);
             if (s.isEmpty()) continue;
             used++;

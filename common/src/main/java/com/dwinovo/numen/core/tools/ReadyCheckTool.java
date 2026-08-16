@@ -213,6 +213,9 @@ public final class ReadyCheckTool implements NumenTool {
         }
 
         for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (isEquipmentSlot(i)) {
+                continue;   // 穿着的装备不算背包
+            }
             ItemStack s = inv.getItem(i);
             if (s.isEmpty()) {
                 continue;
@@ -306,7 +309,7 @@ public final class ReadyCheckTool implements NumenTool {
         int selfDur = self.getMaxDamage() - self.getDamageValue();
         var inv = companion.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (i == slot) {
+            if (i == slot || isEquipmentSlot(i)) {
                 continue;
             }
             ItemStack s = inv.getItem(i);
@@ -320,10 +323,18 @@ public final class ReadyCheckTool implements NumenTool {
         return true;
     }
 
+    /** 26.1 背包容器含装备槽(盔甲/副手);遍历背包时跳过,装备由 equipment 输出。 */
+    private static boolean isEquipmentSlot(int i) {
+        return net.minecraft.world.entity.player.Inventory.EQUIPMENT_SLOT_MAPPING.containsKey(i);
+    }
+
     private static int freeSlots(NumenPlayer companion) {
         int free = 0;
         var inv = companion.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (isEquipmentSlot(i)) {
+                continue;
+            }
             if (inv.getItem(i).isEmpty()) {
                 free++;
             }
@@ -339,6 +350,9 @@ public final class ReadyCheckTool implements NumenTool {
         int bestDur = Integer.MIN_VALUE;
         var inv = companion.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (isEquipmentSlot(i)) {
+                continue;
+            }
             ItemStack s = inv.getItem(i);
             if (s.isEmpty() || !pred.test(s)) {
                 continue;
@@ -366,6 +380,9 @@ public final class ReadyCheckTool implements NumenTool {
     private static boolean hasInInventory(NumenPlayer companion, Predicate<ItemStack> pred) {
         var inv = companion.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (isEquipmentSlot(i)) {
+                continue;
+            }
             ItemStack s = inv.getItem(i);
             if (!s.isEmpty() && pred.test(s)) {
                 return true;
@@ -378,6 +395,9 @@ public final class ReadyCheckTool implements NumenTool {
         int total = 0;
         var inv = companion.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (isEquipmentSlot(i)) {
+                continue;
+            }
             ItemStack s = inv.getItem(i);
             if (!s.isEmpty() && pred.test(s)) {
                 total += s.getCount();
