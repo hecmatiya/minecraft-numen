@@ -35,6 +35,11 @@ public final class SocialSignals {
 
         final String wire;
         Kind(String wire) { this.wire = wire; }
+
+        /** 紧急信号:不被同一 tick 的普通信号(如挥臂边沿)覆盖。 */
+        boolean urgent() {
+            return this == ATTACK || this == ATTACK_OTHER;
+        }
     }
 
     public record Signal(Kind kind, long gameTime) {}
@@ -73,9 +78,14 @@ public final class SocialSignals {
 
     private SocialSignals() {}
 
-    /** 事件式入口(NeoForge 转发)。 */
+    /** 事件式入口(NeoForge 转发)。紧急信号覆盖普通信号,普通信号只覆盖已过期的。 */
     public static void record(UUID companion, Kind kind, long gameTime) {
+        Signal prev = LATEST.get(companion);
+        if (prev != null && !kind.urgent() && gameTime - prev.gameTime() <= FRESH_TICKS) {
+            return;   // 已有新鲜信号,新的普通信号不覆盖(攻击优先)
+        }
         LATEST.put(companion, new Signal(kind, gameTime));
+        com.dwinovo.numen.core.Constants.LOG.debug("[social] signal {} -> companion {}", kind.wire, companion);
     }
 
     /** 看一眼有没有新鲜信号(不消费)。 */

@@ -66,6 +66,8 @@ public final class SocialChain implements TaskChain, Reflex {
             current = SocialReactions.pickReaction(kind, companion);
             ticksLeft = SocialReactions.duration(current);
             SocialReactions.startMotion(companion, current);
+            com.dwinovo.numen.core.Constants.LOG.debug("[social] {} reacts to {} with {} ({} ticks)",
+                    companion.getUUID(), kind.name(), current, ticksLeft);
         }
         // 扫视两段式:过半切到右侧。
         if (current == Motion.HEAD_SCAN && ticksLeft == SocialReactions.duration(Motion.HEAD_SCAN) / 2) {
