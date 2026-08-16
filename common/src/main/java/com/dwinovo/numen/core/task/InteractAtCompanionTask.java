@@ -85,7 +85,12 @@ public final class InteractAtCompanionTask extends GoToThenDoTask<InteractAtTask
             if (r.aim != null) {
                 InputDriver.lookAt(player, Vec3.atCenterOf(r.aim));
             }
-            HitResult hit = Interaction.nativeRaytrace(player, REACH);
+            // 右键(USE)用 SOURCE_ONLY:水源/熔岩源可命中——装水/装岩浆的正路
+            // (原版玩家右键水面就是命中水源本身);左键保持 NONE(水不可挖)。
+            HitResult hit = Interaction.nativeRaytrace(player, REACH,
+                    button() == Interaction.Button.USE
+                            ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
+                            : net.minecraft.world.level.ClipContext.Fluid.NONE);
             // 目标格本身是实心方块、而准星实际落在别的方块上 = 被遮挡:
             // 拒绝并点名遮挡物(点下去只会交互到错误对象还谎报成功)。
             // 目标格是空气/流体(水、熔岩)的瞄点保持准星穿透语义——原版右键

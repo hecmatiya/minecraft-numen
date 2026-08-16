@@ -174,12 +174,22 @@ public final class Interaction {
      * it (entities are searched only as near as the block hit). {@code reach} 4.5 = survival.
      */
     public static HitResult nativeRaytrace(NumenPlayer player, double reach) {
+        return nativeRaytrace(player, reach, ClipContext.Fluid.NONE);
+    }
+
+    /**
+     * 带流体策略的射线。{@code SOURCE_ONLY} 用于右键(USE):水源/熔岩源可被
+     * 命中——原版玩家装水就是这样,准星命中水源方块本身,useItemOn 的
+     * BucketItem 直接检查点击位置的流体。NONE(穿透)下射线会穿过水命中水底,
+     * 桶永远装不上水。
+     */
+    public static HitResult nativeRaytrace(NumenPlayer player, double reach, ClipContext.Fluid fluid) {
         Level level = player.level();
         Vec3 eye = player.getEyePosition();
         Vec3 reachVec = player.getViewVector(1.0f).scale(reach);
         Vec3 end = eye.add(reachVec);
         BlockHitResult block = level.clip(new ClipContext(
-                eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
+                eye, end, ClipContext.Block.OUTLINE, fluid, player));
         double maxSq = block.getType() == HitResult.Type.MISS
                 ? reach * reach : block.getLocation().distanceToSqr(eye);
         AABB box = player.getBoundingBox().expandTowards(reachVec).inflate(1.0);
