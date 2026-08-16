@@ -88,9 +88,13 @@ public final class InteractAtCompanionTask extends GoToThenDoTask<InteractAtTask
             HitResult hit = Interaction.nativeRaytrace(player, REACH);
             // 目标格本身是实心方块、而准星实际落在别的方块上 = 被遮挡:
             // 拒绝并点名遮挡物(点下去只会交互到错误对象还谎报成功)。
-            // 目标格是空气的瞄点(朝某处投掷等)保持准星穿透语义。
+            // 目标格是空气/流体(水、熔岩)的瞄点保持准星穿透语义——原版右键
+            // 水面就是这样:穿透命中水底方块,BucketItem 顺着点击面找到水装桶。
+            net.minecraft.world.level.block.state.BlockState aimState =
+                    r.aim == null ? null : player.level().getBlockState(r.aim);
             if (r.aim != null
-                    && !player.level().getBlockState(r.aim).isAir()
+                    && !aimState.isAir()
+                    && aimState.getFluidState().isEmpty()
                     && hit instanceof net.minecraft.world.phys.BlockHitResult blockedHit
                     && !blockedHit.getBlockPos().equals(r.aim)) {
                 var blocker = blockedHit.getBlockPos();
