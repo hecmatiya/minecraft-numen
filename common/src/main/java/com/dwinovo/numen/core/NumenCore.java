@@ -32,6 +32,8 @@ import com.dwinovo.numen.core.task.InteractAtCompanionTask;
 import com.dwinovo.numen.core.task.InteractAtTaskRecord;
 import com.dwinovo.numen.core.task.InteractEntityCompanionTask;
 import com.dwinovo.numen.core.task.InteractEntityTaskRecord;
+import com.dwinovo.numen.core.task.HarvestCropCompanionTask;
+import com.dwinovo.numen.core.task.HarvestCropTaskRecord;
 import com.dwinovo.numen.core.task.LocateBiomeTaskGoal;
 import com.dwinovo.numen.core.task.LocateBiomeTaskRecord;
 import com.dwinovo.numen.core.task.LocateStructureTaskGoal;
@@ -71,6 +73,12 @@ public final class NumenCore {
         registerTaskRunners();
         registerChains();
         registerReflexes();
+        // 世界状态注入:主人说话时把身边环境拼进用户回合(车万女仆式)。
+        com.dwinovo.numen.agent.prompt.WorldContextRegistry.register(
+                new com.dwinovo.numen.core.context.NumenWorldContext());
+        // 地标注入:主人说话时带上已标记地标(名字+坐标+实时距离)。
+        com.dwinovo.numen.agent.prompt.WorldContextRegistry.register(
+                new com.dwinovo.numen.core.context.LandmarkWorldContext());
         // Enable the autonomous survival chains (auto-eat / mob-defense / unstuck /
         // MLG). SurvivalConfig's own default is OFF — the safe state a bare library
         // build ships with — and the pack turns it on here, explicitly, at init.
@@ -94,6 +102,10 @@ public final class NumenCore {
                 com.dwinovo.numen.core.task.chain.MLGChain::new);
         com.dwinovo.numen.task.BrainChains.register(50,
                 com.dwinovo.numen.core.task.chain.BreathChain::new);
+        // 社交反射链(60):主人在旁挥手/蹲下/送东西时的拟人微动作。出价在
+        // LLM 基准之下,只填大脑空闲的空档,压不住任何生存本能与任务。
+        com.dwinovo.numen.task.BrainChains.register(60,
+                bodyLog -> new com.dwinovo.numen.core.task.chain.SocialChain());
     }
 
     /**
@@ -111,6 +123,11 @@ public final class NumenCore {
         // Registration ORDER is preserved (backends with prompt-caching keyed off
         // the tool list cache stably across requests).
         ToolRegistry.register(new com.dwinovo.numen.core.tools.MoveToTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.FollowTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.CompanyTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.CompanionModeTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.SleepTool());
+        ToolRegistry.register(new com.dwinovo.numen.task.SetTimerTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.MeleeAttackTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.RangedAttackTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.LocateStructureTool());
@@ -119,11 +136,18 @@ public final class NumenCore {
         ToolRegistry.register(new com.dwinovo.numen.core.tools.FishTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.AutoMineTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.EquipItemTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.SpeakTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.MarkLandmarkTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.ListLandmarksTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.UnmarkLandmarkTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.AcquireExternalTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.ReleaseExternalTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.BuildTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.BlueprintTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.BlueprintReadTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.InteractAtTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.InteractEntityTool());
+        ToolRegistry.register(new com.dwinovo.numen.core.tools.HarvestCropTool());
         ToolRegistry.register(new com.dwinovo.numen.core.tools.EatItemTool());
         ToolRegistry.register(new com.dwinovo.numen.task.TaskStatusTool());
         ToolRegistry.register(new com.dwinovo.numen.task.TaskStopTool());
@@ -149,6 +173,10 @@ public final class NumenCore {
 
     private static void registerTaskRunners() {
         CompanionTaskFactory.register(MoveToTaskRecord.class, (p, r) -> new MoveToCompanionTask(p, r));
+        CompanionTaskFactory.register(com.dwinovo.numen.core.task.FollowTaskRecord.class,
+                (p, r) -> new com.dwinovo.numen.core.task.FollowCompanionTask(p, r));
+        CompanionTaskFactory.register(com.dwinovo.numen.core.task.CompanyTaskRecord.class,
+                (p, r) -> new com.dwinovo.numen.core.task.CompanyCompanionTask(p, r));
         CompanionTaskFactory.register(MineBlockTaskRecord.class, (p, r) -> new MineCompanionTask(p, r));
         CompanionTaskFactory.register(EquipTaskRecord.class, (p, r) -> new EquipCompanionTask(p, r));
         CompanionTaskFactory.register(DropItemsTaskRecord.class, (p, r) -> new DropCompanionTask(p, r));
@@ -160,6 +188,7 @@ public final class NumenCore {
         CompanionTaskFactory.register(BuildTaskRecord.class, (p, r) -> new BuildCompanionTask(p, r));
         CompanionTaskFactory.register(InteractAtTaskRecord.class, (p, r) -> new InteractAtCompanionTask(p, r));
         CompanionTaskFactory.register(InteractEntityTaskRecord.class, (p, r) -> new InteractEntityCompanionTask(p, r));
+        CompanionTaskFactory.register(HarvestCropTaskRecord.class, (p, r) -> new HarvestCropCompanionTask(p, r));
         CompanionTaskFactory.register(LocateStructureTaskRecord.class, (p, r) -> new LocateStructureTaskGoal(p, r));
         CompanionTaskFactory.register(LocateBiomeTaskRecord.class, (p, r) -> new LocateBiomeTaskGoal(p, r));
     }
