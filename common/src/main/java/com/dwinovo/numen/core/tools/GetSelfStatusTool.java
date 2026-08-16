@@ -87,6 +87,7 @@ public final class GetSelfStatusTool implements NumenTool {
             JsonObject o = new JsonObject();
             o.addProperty("item", BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
             if (s.getCount() > 1) o.addProperty("count", s.getCount());
+            addDurability(o, s);
             equipment.add(slot.getName(), o);
         }
         root.add("equipment", equipment);
@@ -102,6 +103,7 @@ public final class GetSelfStatusTool implements NumenTool {
             o.addProperty("slot", i);
             o.addProperty("item", BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
             o.addProperty("count", s.getCount());
+            addDurability(o, s);
             items.add(o);
         }
         JsonObject inventory = new JsonObject();
@@ -119,5 +121,19 @@ public final class GetSelfStatusTool implements NumenTool {
         root.addProperty("in_lava", self.isInLava());
 
         reply.accept(root.toString());
+    }
+
+    /**
+     * 物品耐久(若有):damage = 已损耗, max_damage = 上限,
+     * durability = 剩余可用。不可损坏物品(max_damage <= 0)不加字段。
+     */
+    private static void addDurability(JsonObject o, ItemStack s) {
+        int maxDamage = s.getMaxDamage();
+        if (maxDamage > 0) {
+            int damage = s.getDamageValue();
+            o.addProperty("damage", damage);
+            o.addProperty("max_damage", maxDamage);
+            o.addProperty("durability", maxDamage - damage);
+        }
     }
 }
