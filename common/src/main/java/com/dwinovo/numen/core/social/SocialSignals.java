@@ -90,6 +90,34 @@ public final class SocialSignals {
         return s != null && now - s.gameTime() <= FRESH_TICKS ? s.kind() : null;
     }
 
+    /** 反应冷却:两次触发反应之间的最短间隔(刻),区间内随机。 */
+    private static final int REACTION_COOLDOWN_MIN = 40;
+    private static final int REACTION_COOLDOWN_MAX = 80;
+    /** 下次允许反应的时刻(刻)。 */
+    private static final Map<UUID, Long> NEXT_REACTION_AT = new HashMap<>();
+
+    /**
+     * 取信号并应用反应冷却——两个社交调用方(SocialChain / 陪伴任务)统一走这里,
+     * 防止主人连续互动时女仆像复读机一样不停反应。
+     *
+     * <p>冷却期内信号照常消费(错过就是错过,活人也不会对每一下都有反应),
+     * 但返回 null 不触发动作。冷却随机 40~80 刻(2~4 秒),避免机械节拍。
+     */
+    public static Kind consumeReaction(UUID companion, long now) {
+        Kind kind = consume(companion, now);
+        if (kind == null) {
+            return null;
+        }
+        long next = NEXT_REACTION_AT.getOrDefault(companion, 0L);
+        if (now < next) {
+            return null;
+        }
+        long cooldown = REACTION_COOLDOWN_MIN
+                + (long) (Math.random() * (REACTION_COOLDOWN_MAX - REACTION_COOLDOWN_MIN));
+        NEXT_REACTION_AT.put(companion, now + cooldown);
+        return kind;
+    }
+
     /**
      * 每 tick 采样所有在线的同伴:主人姿态边沿 → 信号。
      *

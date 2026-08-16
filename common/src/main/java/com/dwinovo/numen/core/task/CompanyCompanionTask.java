@@ -259,12 +259,14 @@ public final class CompanyCompanionTask extends AbstractCompanionTask<CompanyTas
      * 动作做完了返回 false,闲逛/跟随继续——<b>不打断任务</b>。
      */
     private boolean tickSocial(Entity target, long now) {
+        // 平滑转头每 tick 驱动(有目标才动)。
+        SocialMotion.tickLook(player);
         if (social == null) {
             ServerPlayer owner = companionOwner();
             boolean near = owner != null
                     && player.distanceToSqr(owner) <= SOCIAL_RANGE * SOCIAL_RANGE;
             if (near && SocialSignals.hasFresh(player.getUUID(), now)) {
-                var kind = SocialSignals.consume(player.getUUID(), now);
+                var kind = SocialSignals.consumeReaction(player.getUUID(), now);
                 if (kind != null) {
                     social = SocialReactions.pickReaction(kind, player);
                     socialTicksLeft = SocialReactions.duration(social);
