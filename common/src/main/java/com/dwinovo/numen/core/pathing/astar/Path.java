@@ -49,10 +49,15 @@ public class Path extends PathBase {
         this.goal = goal;
         this.context = context;
 
+        // 回链可能正被 worker 线程松弛改写(previous 是可变字段):用身份集合防环、
+        // 步数上限兜底,读到半更新的链最多得到一条截断路径,绝不让 tick 线程死循环。
+        java.util.Set<PathNode> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         PathNode current = end;
         List<BlockPos> tempPath = new ArrayList<>();
         List<PathNode> tempNodes = new ArrayList<>();
-        while (current != null) {
+        int hops = 0;
+        while (current != null && hops++ < 100_000) {
+            if (!seen.add(current)) break;   // 环:截断
             tempNodes.add(current);
             tempPath.add(new BlockPos(current.x, current.y, current.z));
             current = current.previous;

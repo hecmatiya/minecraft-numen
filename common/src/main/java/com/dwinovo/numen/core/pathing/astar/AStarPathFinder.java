@@ -57,7 +57,7 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         double[] bestHeuristicSoFar = new double[COEFFICIENTS.length];
         for (int i = 0; i < bestHeuristicSoFar.length; i++) {
             bestHeuristicSoFar[i] = startNode.estimatedCostToGoal;
-            bestSoFar[i] = startNode;
+            bestSoFar.set(i, startNode);
         }
         MutableMoveResult res = new MutableMoveResult();
         long startTime = System.currentTimeMillis();
@@ -154,7 +154,7 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
                         double heuristic = neighbor.estimatedCostToGoal + neighbor.cost / COEFFICIENTS[i];
                         if (bestHeuristicSoFar[i] - heuristic > minimumImprovement) {
                             bestHeuristicSoFar[i] = heuristic;
-                            bestSoFar[i] = neighbor;
+                            bestSoFar.set(i, neighbor);
                             if (failing && getDistFromStartSq(neighbor) > MIN_DIST_PATH * MIN_DIST_PATH) {
                                 failing = false;
                             }

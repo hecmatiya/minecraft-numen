@@ -34,6 +34,7 @@ tasks.withType(JavaCompile).configureEach {
 
 repositories {
     mavenCentral()
+    mavenLocal()   // 本机构建:引擎改动 publishToMavenLocal 后立即可用
     // Published numen-api engine. Local file repo first (fast iteration on this
     // machine after `gradlew publish`); the public raw maven is the fallback so
     // fresh clones / other people resolve it too.

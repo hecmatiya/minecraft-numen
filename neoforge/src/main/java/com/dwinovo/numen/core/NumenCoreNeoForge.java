@@ -32,6 +32,81 @@ public class NumenCoreNeoForge {
         NumenCore.init();
 
         NeoForge.EVENT_BUS.addListener(NumenCoreNeoForge::onServerTickPost);
+        // 玩家动作 → 社交信号(事件式):右键点同伴 = 送东西/搭话;攻击同伴 = 冒犯。
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.EntityInteract e) -> {
+            if (e.getEntity().level().isClientSide()) return;   // 客户端预测事件,服务端才是权威
+            if (e.getTarget() instanceof com.dwinovo.numen.entity.NumenPlayer companion) {
+                com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
+                        com.dwinovo.numen.core.social.SocialSignals.Kind.GIFT,
+                        companion.level().getGameTime());
+            }
+        });
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.AttackEntityEvent e) -> {
+            if (e.getEntity().level().isClientSide()) return;   // 客户端预测事件,服务端才是权威
+            if (e.getTarget() instanceof com.dwinovo.numen.entity.NumenPlayer companion) {
+                // 打她:记到被打的同伴头上
+                com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
+                        com.dwinovo.numen.core.social.SocialSignals.Kind.ATTACK,
+                        companion.level().getGameTime());
+                return;
+            }
+            // 打别的怪:记到"附近同伴"头上(简化:全在线同伴都感知到"主人打怪")
+            for (var p : e.getEntity().level().getServer().getPlayerList().getPlayers()) {
+                if (p instanceof com.dwinovo.numen.entity.NumenPlayer companion) {
+                    if (companion.distanceToSqr(e.getEntity()) <= 12 * 12) {
+                        com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
+                                com.dwinovo.numen.core.social.SocialSignals.Kind.ATTACK_OTHER,
+                                companion.level().getGameTime());
+                    }
+                }
+            }
+        });
+        // 捡东西:附近同伴感知到"主人捡了东西"(Post = 捡起完成)。
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post e) -> {
+            if (!(e.getPlayer() instanceof net.minecraft.server.level.ServerPlayer owner)
+                    || owner.level().isClientSide()) {
+                return;   // 客户端预测事件,服务端才是权威
+            }
+            for (var p : owner.level().getServer().getPlayerList().getPlayers()) {
+                if (p instanceof com.dwinovo.numen.entity.NumenPlayer companion
+                        && companion.distanceToSqr(owner) <= 12 * 12) {
+                    com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
+                            com.dwinovo.numen.core.social.SocialSignals.Kind.COLLECT_ITEM,
+                            companion.level().getGameTime());
+                }
+            }
+        });
+        // 右键方块:主手拿着方块 = 放置,否则 = 使用方块(开箱子/炉子等)。
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.RightClickBlock e) -> {
+            if (e.getEntity().level().isClientSide()) return;   // 客户端预测事件,服务端才是权威
+            var kind = e.getItemStack().getItem() instanceof net.minecraft.world.item.BlockItem
+                    ? com.dwinovo.numen.core.social.SocialSignals.Kind.PLACING
+                    : com.dwinovo.numen.core.social.SocialSignals.Kind.INTERACTING;
+            for (var p : e.getLevel().getServer().getPlayerList().getPlayers()) {
+                if (p instanceof com.dwinovo.numen.entity.NumenPlayer companion
+                        && companion.distanceToSqr(e.getEntity()) <= 12 * 12) {
+                    com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(), kind,
+                            companion.level().getGameTime());
+                }
+            }
+        });
+        // 丢东西:物品实体出现在世界里(玩家 Q 键丢出)。
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.EntityJoinLevelEvent e) -> {
+            if (e.getLevel().isClientSide()) return;   // 客户端预测事件,服务端才是权威
+            if (!(e.getEntity() instanceof net.minecraft.world.entity.item.ItemEntity item)
+                    || item.getOwner() == null
+                    || !(item.getOwner() instanceof net.minecraft.server.level.ServerPlayer owner)) {
+                return;
+            }
+            for (var p : e.getLevel().getServer().getPlayerList().getPlayers()) {
+                if (p instanceof com.dwinovo.numen.entity.NumenPlayer companion
+                        && companion.distanceToSqr(owner) <= 12 * 12) {
+                    com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
+                            com.dwinovo.numen.core.social.SocialSignals.Kind.DROP_ITEM,
+                            companion.level().getGameTime());
+                }
+            }
+        });
         // Release pathfinding chunk-ref snapshots when the server stops (don't pin an old world).
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent e) -> PathCaches.dropAll());
         // Drop the shared target-block index with the world it describes.
@@ -50,6 +125,11 @@ public class NumenCoreNeoForge {
         // this never runs on a dedicated server.
         if (FMLLoader.getCurrent().getDist() == Dist.CLIENT) {
             declareBundledSkills();
+            // speak 工具的声音管线:播放接续靠每客户端 tick 推进(上一句播完自动起下一句)。
+            // 服务端没有语音,不注册(客户端事件类只在客户端触碰)。
+            NeoForge.EVENT_BUS.addListener(
+                    (net.neoforged.neoforge.client.event.ClientTickEvent.Post e) ->
+                            com.dwinovo.numen.core.tools.SpeakTool.tickAll());
         }
 
         Constants.LOG.info("numen-core initialised on NeoForge.");
@@ -79,5 +159,11 @@ public class NumenCoreNeoForge {
         com.dwinovo.numen.core.scan.TargetIndex.serverTick(event.getServer());
         // Debug particles for pathing state, sent only to players with debug on.
         PathDebugRenderer.serverTick(event.getServer());
+        // set_timer 的表到点扫描(秒级降频在 TimerRegistry 内部)。
+        com.dwinovo.numen.task.TimerRegistry.tick(event.getServer());
+        // 玩家动作姿态采样(挥臂/蹲下/视线),喂给社交反射链。
+        com.dwinovo.numen.core.social.SocialSignals.detectTick(event.getServer());
+        // 空闲模式自动恢复:陪伴模式工作做完自动回到陪伴。
+        com.dwinovo.numen.core.social.CompanionModes.tickAutoRestore(event.getServer());
     }
 }

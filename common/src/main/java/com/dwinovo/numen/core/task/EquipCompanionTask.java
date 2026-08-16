@@ -74,7 +74,10 @@ public final class EquipCompanionTask extends AbstractCompanionTask<EquipTaskRec
 
         // Right-click didn't equip it (e.g. an item with no equip-on-use behaviour). Fall back to a
         // direct vanilla-slot set. The item is currently held in the selected hotbar slot.
-        ItemStack one = inv.getItem(invSlot).copyWithCount(1);
+        // NOTE: after holdInHand(invSlot) a MAIN-inventory slot was SWAPPED with the
+        // selected hotbar slot — invSlot now holds the previously held item, so read from
+        // getSelectedSlot() (the wanted item).
+        ItemStack one = inv.getItem(inv.getSelectedSlot()).copyWithCount(1);
         EquipmentSlot target = resolveSlot(one);
         if (target == EquipmentSlot.MAINHAND) {
             succeed("holding " + r.label + " in main hand", "mainhand");   // already in hand

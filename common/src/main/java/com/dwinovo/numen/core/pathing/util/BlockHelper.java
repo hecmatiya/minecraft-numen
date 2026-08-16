@@ -433,4 +433,49 @@ public final class BlockHelper {
     public static boolean breakReleasesFallingBlock(BlockGetter level, BlockPos pos) {
         return level.getBlockState(pos.above()).getBlock() instanceof FallingBlock;
     }
+
+    /**
+     * 人造方块判定——"不拆家"寻路的核心:SoulCraft 式文明寻路不挖
+     * 这些方块,绕行;只有自然方块(石头/泥土/沙/原木……)才允许挖着走。
+     *
+     * <p>两条判据:带方块实体的一律算(箱子/熔炉/工作台/告示牌……什么
+     * 家具都是),实体方块外的常见建筑系/红石系按类型拦。挖矿任务
+     * (玩家点名挖什么)不受影响——这是寻路"路过"时的克制,不是禁止
+     * 挖矿。
+     */
+    public static boolean isManMadeBlock(net.minecraft.world.level.block.state.BlockState state) {
+        if (state.hasBlockEntity()) {
+            return true;
+        }
+        net.minecraft.world.level.block.Block b = state.getBlock();
+        return b instanceof net.minecraft.world.level.block.StairBlock
+                || b instanceof net.minecraft.world.level.block.SlabBlock
+                || b instanceof net.minecraft.world.level.block.FenceBlock
+                || b instanceof net.minecraft.world.level.block.FenceGateBlock
+                || b instanceof net.minecraft.world.level.block.WallBlock
+                || b instanceof net.minecraft.world.level.block.DoorBlock
+                || b instanceof net.minecraft.world.level.block.TrapDoorBlock
+                || b instanceof net.minecraft.world.level.block.StainedGlassBlock
+                || b instanceof net.minecraft.world.level.block.TintedGlassBlock
+                || b instanceof net.minecraft.world.level.block.WoolCarpetBlock
+                || b instanceof net.minecraft.world.level.block.CarpetBlock
+                || b instanceof net.minecraft.world.level.block.BedBlock
+                || b instanceof net.minecraft.world.level.block.LadderBlock
+                || b instanceof net.minecraft.world.level.block.TorchBlock
+                || b instanceof net.minecraft.world.level.block.BaseRailBlock
+                || b instanceof net.minecraft.world.level.block.ButtonBlock
+                || b instanceof net.minecraft.world.level.block.PressurePlateBlock
+                || b instanceof net.minecraft.world.level.block.LeverBlock
+                || b instanceof net.minecraft.world.level.block.RedStoneWireBlock
+                || b instanceof net.minecraft.world.level.block.RepeaterBlock
+                || b instanceof net.minecraft.world.level.block.ComparatorBlock
+                || b instanceof net.minecraft.world.level.block.ObserverBlock
+                || b instanceof net.minecraft.world.level.block.FlowerPotBlock
+                || b instanceof net.minecraft.world.level.block.SignBlock
+                || b instanceof net.minecraft.world.level.block.HangingSignBlock
+                || b instanceof net.minecraft.world.level.block.BannerBlock
+                || b instanceof net.minecraft.world.level.block.LanternBlock
+                || b instanceof net.minecraft.world.level.block.ChiseledBookShelfBlock
+                || b instanceof net.minecraft.world.level.block.BellBlock;
+    }
 }

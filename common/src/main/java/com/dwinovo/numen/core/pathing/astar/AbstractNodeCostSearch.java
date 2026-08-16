@@ -1,6 +1,7 @@
 package com.dwinovo.numen.core.pathing.astar;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import com.dwinovo.numen.core.Constants;
 import com.dwinovo.numen.core.pathing.goals.Goal;
@@ -55,7 +56,12 @@ public abstract class AbstractNodeCostSearch {
     protected volatile PathNode mostRecentConsidered;
 
     /** 七档各自的最优候选节点。 */
-    protected final PathNode[] bestSoFar = new PathNode[COEFFICIENTS.length];
+    /**
+     * 七档各自的最优候选节点。worker 线程写、tick 线程经 {@link #bestPathSoFar()} 读,
+     * 用 AtomicReferenceArray 保证跨线程读写至少不会读到撕裂引用
+     * (节点内部的 previous 链另有 Path 构造时的防环兜底)。
+     */
+    protected final AtomicReferenceArray<PathNode> bestSoFar = new AtomicReferenceArray<>(COEFFICIENTS.length);
 
     private volatile boolean isFinished;
 
@@ -167,10 +173,11 @@ public abstract class AbstractNodeCostSearch {
         }
         double bestDist = 0;
         for (int i = 0; i < COEFFICIENTS.length; i++) {
-            if (bestSoFar[i] == null) {
+            PathNode node = bestSoFar.get(i);
+            if (node == null) {
                 continue;
             }
-            double dist = getDistFromStartSq(bestSoFar[i]);
+            double dist = getDistFromStartSq(node);
             if (dist > bestDist) {
                 bestDist = dist;
             }
@@ -178,7 +185,7 @@ public abstract class AbstractNodeCostSearch {
                 if (logInfo && COEFFICIENTS[i] >= 3) {
                     Constants.LOG.debug("bestSoFar 采用系数 {},路径质量可能很差", COEFFICIENTS[i]);
                 }
-                return Optional.of(new Path(realStart, startNode, bestSoFar[i], numNodes, goal, context));
+                return Optional.of(new Path(realStart, startNode, node, numNodes, goal, context));
             }
         }
         if (logInfo) {

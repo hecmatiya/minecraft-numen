@@ -399,6 +399,11 @@ public final class MovementHelper {
         if (NavSettings.get().blocksToDisallowBreaking().contains(b)) {
             return true;
         }
+        // 不拆家:人造方块(家具/建筑系/红石系)一律不挖,绕行。
+        // 玩家点名挖矿(mine 任务)不受影响——这是寻路"路过"时的克制。
+        if (com.dwinovo.numen.core.pathing.util.BlockHelper.isManMadeBlock(state)) {
+            return true;
+        }
         return b == Blocks.ICE
                 || b instanceof InfestedBlock
                 || avoidAdjacentBreaking(context, x, y + 1, z, true)

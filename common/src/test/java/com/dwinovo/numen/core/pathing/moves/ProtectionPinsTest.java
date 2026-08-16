@@ -40,9 +40,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * 挖掘/放置保护口径的回归钉,打在真实成本函数上:
  * <ul>
- *   <li>功能方块软惩罚:箱子(在 NavSettings.blocksToAvoidBreaking 默认清单内)
- *       计 ×10 软成本(有限价,无路可走仍会破坏)
- *       (回到泥土一样的有限价);</li>
+ *   <li>「不拆家」硬禁:箱子等带方块实体的人造方块(BlockHelper.isManMadeBlock)
+ *       寻路一律计 INF 硬禁,玩家点名挖矿(mine 任务)不受影响;</li>
  *   <li>do_not_break 标签成员(数据包追加)在任何开关下都计 INF,
  *       默认清单为空,本测试通过 NavSettings
  *       .blocksToDisallowBreaking 钉一个方块验证;</li>
@@ -217,26 +216,27 @@ class ProtectionPinsTest {
     // ==================== 挖掘保护 ====================
 
     @Test
-    void chestBreakIsSoftPenaltyButFinite() {
+    void chestIsHardBlockedByNoDismantleRule() {
         BlockPos chest = SRC.north();
         FakeView v = floored();
         v.setChest(chest);
-        // 箱子在 NavSettings.blocksToAvoidBreaking 默认清单内 → ×10 软成本(有限价)
-        double soft = MovementHelper.getMiningDurationTicks(
+        // 「不拆家」设计:箱子带方块实体 → isManMadeBlock → 寻路硬禁挖(INF),
+        // 玩家点名挖矿(mine 任务)不受影响。
+        double chestCost = MovementHelper.getMiningDurationTicks(
                 context(v, LongSets.emptySet()),
                 chest.getX(), chest.getY(), chest.getZ(), false);
-        assertTrue(soft > 0 && soft < COST_INF, "软惩罚箱子应有有限价,实为 " + soft);
-        // 对照:普通泥土无软惩罚,应显著更便宜(软惩罚真实生效)
+        assertTrue(chestCost >= COST_INF, "人造方块(箱子)应硬禁挖,实为 " + chestCost);
+        // 对照:普通泥土是自然方块,无保护,应可挖(有限价)
         BlockPos dirt = SRC.south();
         v.set(dirt, Blocks.DIRT.defaultBlockState());
         double plain = MovementHelper.getMiningDurationTicks(
                 context(v, LongSets.emptySet()),
                 dirt.getX(), dirt.getY(), dirt.getZ(), false);
-        assertTrue(plain < soft, "软惩罚应贵于普通方块,soft=" + soft + " plain=" + plain);
-        // 端到端:北向平移(要挖穿箱子)产出有限边(不是 INF)
+        assertTrue(plain > 0 && plain < COST_INF, "自然方块(泥土)应可挖,实为 " + plain);
+        // 端到端:北向平移要挖穿箱子 → 被禁止(INF),寻路应绕行
         double cost = Moves.TRAVERSE_NORTH.cost(context(v, LongSets.emptySet()),
                 SRC.getX(), SRC.getY(), SRC.getZ());
-        assertTrue(cost > 0 && cost < COST_INF, "穿箱平移应有限价,实为 " + cost);
+        assertTrue(cost >= COST_INF, "穿箱平移应被禁止(INF),实为 " + cost);
     }
 
     @Test
