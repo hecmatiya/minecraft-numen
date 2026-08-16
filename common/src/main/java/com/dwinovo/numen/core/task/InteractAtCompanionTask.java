@@ -11,6 +11,7 @@ import com.dwinovo.numen.core.pathing.exec.PlayerNav;
 import com.dwinovo.numen.core.task.base.GoToThenDoTask;
 import com.dwinovo.numen.core.task.base.Precondition;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -85,16 +86,15 @@ public final class InteractAtCompanionTask extends GoToThenDoTask<InteractAtTask
             if (r.aim != null) {
                 InputDriver.lookAt(player, Vec3.atCenterOf(r.aim));
             }
-            // 右键(USE)用 SOURCE_ONLY:水源/熔岩源可命中——装水/装岩浆的正路
-            // (原版玩家右键水面就是命中水源本身);左键保持 NONE(水不可挖)。
-            HitResult hit = Interaction.nativeRaytrace(player, REACH,
-                    button() == Interaction.Button.USE
-                            ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
-                            : net.minecraft.world.level.ClipContext.Fluid.NONE);
+            // 射线回到穿透(NONE):26.1 的 BucketItem 只有 use() 没有 useOn(),
+            // 原版装水 = 右键时射线穿透水 → 判定"空气使用" → useItem →
+            // 桶内部用 SOURCE_ONLY 射线找水源装水。SOURCE_ONLY 命中水源反而
+            // 走进 useItemOn(水) 死路(水方块没有交互,桶也没有 useOn)。
+            HitResult hit = Interaction.nativeRaytrace(player, REACH);
             // 目标格本身是实心方块、而准星实际落在别的方块上 = 被遮挡:
             // 拒绝并点名遮挡物(点下去只会交互到错误对象还谎报成功)。
             // 目标格是空气/流体(水、熔岩)的瞄点保持准星穿透语义——原版右键
-            // 水面就是这样:穿透命中水底方块,BucketItem 顺着点击面找到水装桶。
+            // 水面就是这样:穿透命中水底,装水由 useItem 路径完成。
             net.minecraft.world.level.block.state.BlockState aimState =
                     r.aim == null ? null : player.level().getBlockState(r.aim);
             if (r.aim != null
@@ -129,7 +129,17 @@ public final class InteractAtCompanionTask extends GoToThenDoTask<InteractAtTask
                 activatedBlockId = BuiltInRegistries.BLOCK
                         .getKey(player.level().getBlockState(activatedBlock).getBlock()).getPath();
             }
-            interaction = Interaction.forHit(player, hit, button(), r.holdTicks);
+            // 瞄准流体(水/熔岩)+ 右键 = 原版"空气使用"语义:26.1 的 BucketItem
+            // 只有 use() 没有 useOn(),装水/装岩浆必须走 useItem——桶内部会用
+            // SOURCE_ONLY 射线自己找水源。若走 useItemOn(水) 则水方块没有
+            // 交互、桶也没有 useOn,什么都不会发生。
+            if (button() == Interaction.Button.USE && r.aim != null
+                    && !player.level().getBlockState(r.aim).getFluidState().isEmpty()) {
+                interaction = Interaction.useInAir(player, InteractionHand.MAIN_HAND,
+                        Interaction.Timing.once());
+            } else {
+                interaction = Interaction.forHit(player, hit, button(), r.holdTicks);
+            }
             if (interaction == null) {       // left-click on air — a swing, nothing to do
                 successMsg = "nothing under the aim (left-click in the air)";
                 return TaskState.SUCCESS;
