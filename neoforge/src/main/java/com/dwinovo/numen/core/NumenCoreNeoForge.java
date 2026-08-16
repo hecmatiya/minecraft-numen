@@ -37,27 +37,10 @@ public class NumenCoreNeoForge {
                         .resolve("numen").resolve("social.json"));
 
         NeoForge.EVENT_BUS.addListener(NumenCoreNeoForge::onServerTickPost);
-        // 玩家动作 → 社交信号(事件式):右键点同伴 = 送礼/搭话;攻击同伴 = 冒犯。
-        // MC 原版对玩家实体右键没有任何效果,所以"送礼"由本 mod 实现:
-        // 手持物品右键她 = 物品转移进她的背包(满了掉她脚边),一次一件;
-        // 空手右键 = 搭话/摸头。两种都会触发 GIFT 社交信号。
+        // 玩家动作 → 社交信号(事件式):右键点同伴 = 送东西/搭话;攻击同伴 = 冒犯。
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.EntityInteract e) -> {
             if (e.getEntity().level().isClientSide()) return;   // 客户端预测事件,服务端才是权威
             if (e.getTarget() instanceof com.dwinovo.numen.entity.NumenPlayer companion) {
-                net.minecraft.server.level.ServerPlayer owner = (net.minecraft.server.level.ServerPlayer) e.getEntity();
-                net.minecraft.world.item.ItemStack hand = owner.getMainHandItem();
-                if (!hand.isEmpty()) {
-                    net.minecraft.world.item.ItemStack give = hand.copy();
-                    give.setCount(1);
-                    hand.shrink(1);
-                    if (!companion.getInventory().add(give) && !give.isEmpty()) {
-                        companion.drop(give, true);   // 背包满了,剩余掉她脚边
-                    }
-                    Constants.LOG.info("[numen-core] {} gave 1x {} to companion {}",
-                            owner.getName().getString(),
-                            net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(give.getItem()).getPath(),
-                            companion.getUUID());
-                }
                 com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
                         com.dwinovo.numen.core.social.SocialSignals.Kind.GIFT,
                         companion.level().getGameTime());
