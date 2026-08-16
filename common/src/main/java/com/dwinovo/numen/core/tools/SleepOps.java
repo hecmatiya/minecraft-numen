@@ -42,14 +42,24 @@ public final class SleepOps {
     private static final int REACH_H = 3;
     private static final int REACH_V = 2;
 
+    /** 原版判"够不够得着床"的盒子({@code Player.startSleepInBed} 用的就是这个)。 */
+    /** 床边即时睡眠的判据:床中心 3 格内(与原版 startSleepInBed 一致)。 */
+    public static boolean withinSleepReach(NumenPlayer self, BlockPos bedHead) {
+        return self.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(bedHead)) <= 9.0;
+    }
+
     public String sleep(Integer x, Integer y, Integer z, NumenPlayer self) {
         BlockPos bedHead = x != null && y != null && z != null
                 ? headOf(self.level(), new BlockPos(x, y, z))
-                : nearestBedHeadInReach(self);
+                : nearestBedHead(self, REACH_H);
         if (bedHead == null) {
             return noBed(self, x != null && y != null && z != null);
         }
+        return sleepAt(bedHead, self);
+    }
 
+    /** 在指定床头当场睡觉(调用方保证已在睡眠距离内)。 */
+    public String sleepAt(BlockPos bedHead, NumenPlayer self) {
         Either<Player.BedSleepingProblem, Unit> result = self.startSleepInBed(bedHead);
         Player.BedSleepingProblem rejection = result.left().orElse(null);
 
@@ -79,7 +89,7 @@ public final class SleepOps {
      * 是 {@code null},那两种它在别处另行处理),那时枚举名就是全部信息——不能因为 null 就炸,
      * 那会把"她睡不着"变成"工具报错",而模型对后者无从下手。
      */
-    static String explain(Player.BedSleepingProblem problem) {
+    public static String explain(Player.BedSleepingProblem problem) {
         // 26.1.2 起 BedSleepingProblem 从枚举改成了 record:message() 是组件,
         // 常量(TOO_FAR_AWAY/OBSTRUCTED/…)是静态字段,不再有 name()。
         var vanilla = problem.message();
@@ -88,15 +98,15 @@ public final class SleepOps {
                 : "the bed refused you (" + problem + ")";
     }
 
-    /** 手边够得着的床(原版口径:床的任一半在 ±3/±2/±3 内),归一到床头。 */
-    private static BlockPos nearestBedHeadInReach(NumenPlayer self) {
+    /** 附近最近的床(半径可调:REACH_H 即时 / 更大的半径自动走近),归一到床头。 */
+    public static BlockPos nearestBedHead(NumenPlayer self, int radius) {
         Level level = self.level();
         BlockPos me = self.blockPosition();
         BlockPos best = null;
         double bestDistSq = Double.MAX_VALUE;
         for (BlockPos p : BlockPos.betweenClosed(
-                me.offset(-REACH_H, -REACH_V, -REACH_H),
-                me.offset(REACH_H, REACH_V, REACH_H))) {
+                me.offset(-radius, -REACH_V, -radius),
+                me.offset(radius, REACH_V, radius))) {
             BlockPos head = headOf(level, p);
             if (head == null) {
                 continue;
@@ -116,7 +126,7 @@ public final class SleepOps {
      * <p>床占两格而 {@code startSleepInBed} 只认床头,所以从任一半算得出来——省得模型
      * 撞运气给了床尾那格。
      */
-    private static BlockPos headOf(Level level, BlockPos pos) {
+    public static BlockPos headOf(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         if (!(state.getBlock() instanceof BedBlock)
                 || !state.hasProperty(BedBlock.PART)
@@ -129,7 +139,7 @@ public final class SleepOps {
     }
 
     /** 没床时把下一步递到她面前——包括"你自己身上就带着一张"。 */
-    private String noBed(NumenPlayer self, boolean coordsGiven) {
+    public String noBed(NumenPlayer self, boolean coordsGiven) {
         String carried = carriedBed(self);
         String base = coordsGiven
                 ? "there is no bed at those coordinates"

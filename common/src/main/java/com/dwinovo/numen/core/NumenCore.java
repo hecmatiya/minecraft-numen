@@ -34,6 +34,8 @@ import com.dwinovo.numen.core.task.InteractEntityCompanionTask;
 import com.dwinovo.numen.core.task.InteractEntityTaskRecord;
 import com.dwinovo.numen.core.task.HarvestCropCompanionTask;
 import com.dwinovo.numen.core.task.HarvestCropTaskRecord;
+import com.dwinovo.numen.core.task.SleepCompanionTask;
+import com.dwinovo.numen.core.task.SleepTaskRecord;
 import com.dwinovo.numen.core.task.LocateBiomeTaskGoal;
 import com.dwinovo.numen.core.task.LocateBiomeTaskRecord;
 import com.dwinovo.numen.core.task.LocateStructureTaskGoal;
@@ -190,6 +192,7 @@ public final class NumenCore {
         CompanionTaskFactory.register(InteractAtTaskRecord.class, (p, r) -> new InteractAtCompanionTask(p, r));
         CompanionTaskFactory.register(InteractEntityTaskRecord.class, (p, r) -> new InteractEntityCompanionTask(p, r));
         CompanionTaskFactory.register(HarvestCropTaskRecord.class, (p, r) -> new HarvestCropCompanionTask(p, r));
+        CompanionTaskFactory.register(SleepTaskRecord.class, (p, r) -> new SleepCompanionTask(p, r));
         CompanionTaskFactory.register(LocateStructureTaskRecord.class, (p, r) -> new LocateStructureTaskGoal(p, r));
         CompanionTaskFactory.register(LocateBiomeTaskRecord.class, (p, r) -> new LocateBiomeTaskGoal(p, r));
     }
