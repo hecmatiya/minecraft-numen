@@ -37,6 +37,9 @@ public final class VoiceScheduler {
     private static final long CLIMATE_COOLDOWN = 10 * 60 * 20L;  // 10 分钟
     private static final long GREETING_COOLDOWN = 5 * 60 * 20L;  // 5 分钟
     private static final long HURT_COOLDOWN = 60 * 20L;          // 60 秒
+    /** 刚说过"回来了"之后,多久内不再说早/晚安——避免回家时两句连着来。
+     *  早晨/傍晚窗口各有 3 小时,错开几分钟完全来得及。 */
+    private static final long GREETING_LINE_GAP = 3 * 60 * 20L;  // 3 分钟
     /** 回家边沿:她在家等你、你从 12 格外走进 8 格内才算"回家"。
      *  注意:她跟随/陪伴你时距离恒近,不会触发——一直在一起不需要欢迎。 */
     private static final double GREETING_ENTER = 8.0;
@@ -81,14 +84,16 @@ public final class VoiceScheduler {
             }
             State st = STATES.computeIfAbsent(entry.uuid(), u -> new State());
 
-            // 早晨:每天一次。
-            if (dayTime > 0 && dayTime < 3000 && st.morningDay != day) {
+            // 早晨:每天一次;刚打过招呼(回家)后 3 分钟内不说,错开时机。
+            if (dayTime > 0 && dayTime < 3000 && st.morningDay != day
+                    && now - st.lastGreeting >= GREETING_LINE_GAP) {
                 st.morningDay = day;
                 speak(entry, VoiceLines.Scene.MORNING);
                 continue;
             }
-            // 傍晚:每天一次。
-            if (dayTime > 12000 && dayTime < 15000 && st.eveningDay != day) {
+            // 傍晚:每天一次;同上错开"回来了"。
+            if (dayTime > 12000 && dayTime < 15000 && st.eveningDay != day
+                    && now - st.lastGreeting >= GREETING_LINE_GAP) {
                 st.eveningDay = day;
                 speak(entry, VoiceLines.Scene.EVENING);
                 continue;
