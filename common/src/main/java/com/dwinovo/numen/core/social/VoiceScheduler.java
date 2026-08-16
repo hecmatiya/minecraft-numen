@@ -37,17 +37,19 @@ public final class VoiceScheduler {
     private static final long CLIMATE_COOLDOWN = 10 * 60 * 20L;  // 10 分钟
     private static final long GREETING_COOLDOWN = 5 * 60 * 20L;  // 5 分钟
     private static final long HURT_COOLDOWN = 60 * 20L;          // 60 秒
-    private static final double GREETING_ENTER = 16.0;
-    private static final double GREETING_EXIT = 20.0;
+    /** 回家边沿:她在家等你、你从 12 格外走进 8 格内才算"回家"。
+     *  注意:她跟随/陪伴你时距离恒近,不会触发——一直在一起不需要欢迎。 */
+    private static final double GREETING_ENTER = 8.0;
+    private static final double GREETING_EXIT = 12.0;
 
     /** 每同伴的调度状态。 */
     private static final class State {
         long morningDay = -1;      // 上次说早安的游戏日(-1 = 还没说过)
         long eveningDay = -1;      // 上次说晚安的游戏日
-        long lastRain = 0;
-        long lastClimate = 0;
-        long lastGreeting = 0;
-        long lastHurt = 0;
+        long lastRain = -RAIN_COOLDOWN;        // 负值 = 首次检查直接可用(无溢出)
+        long lastClimate = -CLIMATE_COOLDOWN;
+        long lastGreeting = -GREETING_COOLDOWN;
+        long lastHurt = -HURT_COOLDOWN;
         boolean insideGreet = false;
         int prevHurtTime = 0;
     }
@@ -108,12 +110,14 @@ public final class VoiceScheduler {
                 speak(entry, cold ? VoiceLines.Scene.COLD : VoiceLines.Scene.HOT);
                 continue;
             }
-            // 主人回家:进入 16 格(从 20 格外算"新接触",迟滞防抖)。
+            // 主人回家:从 12 格外走进 8 格内 = "新接触"(迟滞防抖)。
             double dist = companion.distanceTo(mc.player);
             boolean inside = dist <= GREETING_ENTER;
             if (inside && !st.insideGreet && now - st.lastGreeting >= GREETING_COOLDOWN) {
                 st.lastGreeting = now;
                 speak(entry, VoiceLines.Scene.GREETING);
+                com.dwinovo.numen.core.Constants.LOG.debug(
+                        "[voices] greeting for {} (dist {:.1f})", entry.uuid(), dist);
             }
             st.insideGreet = inside;
             if (!inside && dist > GREETING_EXIT) {
