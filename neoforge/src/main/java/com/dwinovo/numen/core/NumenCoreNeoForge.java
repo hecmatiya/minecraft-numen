@@ -36,6 +36,25 @@ public class NumenCoreNeoForge {
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.EntityInteract e) -> {
             if (e.getEntity().level().isClientSide()) return;   // 客户端预测事件,服务端才是权威
             if (e.getTarget() instanceof com.dwinovo.numen.entity.NumenPlayer companion) {
+                // MC 原版对玩家实体右键没有任何效果,所以"送礼"由本 mod 实现。
+                // 只认真人玩家发起(排除同伴自己/其他同伴——agent 的工具调用
+                // 走 NumenPlayer 身体,不能让它顺手把物品转走)。
+                if (e.getEntity() instanceof net.minecraft.server.level.ServerPlayer owner
+                        && !(e.getEntity() instanceof com.dwinovo.numen.entity.NumenPlayer)) {
+                    net.minecraft.world.item.ItemStack hand = owner.getMainHandItem();
+                    if (!hand.isEmpty()) {
+                        net.minecraft.world.item.ItemStack give = hand.copy();
+                        give.setCount(1);
+                        hand.shrink(1);
+                        if (!companion.getInventory().add(give) && !give.isEmpty()) {
+                            companion.drop(give, true);   // 背包满了,剩余掉她脚边
+                        }
+                        Constants.LOG.info("[numen-core] {} gave 1x {} to companion {}",
+                                owner.getName().getString(),
+                                net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(give.getItem()).getPath(),
+                                companion.getUUID());
+                    }
+                }
                 com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
                         com.dwinovo.numen.core.social.SocialSignals.Kind.GIFT,
                         companion.level().getGameTime());
@@ -125,11 +144,17 @@ public class NumenCoreNeoForge {
         // this never runs on a dedicated server.
         if (FMLLoader.getCurrent().getDist() == Dist.CLIENT) {
             declareBundledSkills();
+            // 场景台词(环境语音):加载 config/numen/voices.json 覆盖默认台词表。
+            com.dwinovo.numen.core.social.VoiceLines.loadConfig(
+                    net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()
+                            .resolve("numen").resolve("voices.json"));
             // speak 工具的声音管线:播放接续靠每客户端 tick 推进(上一句播完自动起下一句)。
-            // 服务端没有语音,不注册(客户端事件类只在客户端触碰)。
+            // 场景台词调度也在同一 tick 驱动。服务端没有语音,不注册(客户端事件类只在客户端触碰)。
             NeoForge.EVENT_BUS.addListener(
-                    (net.neoforged.neoforge.client.event.ClientTickEvent.Post e) ->
-                            com.dwinovo.numen.core.tools.SpeakTool.tickAll());
+                    (net.neoforged.neoforge.client.event.ClientTickEvent.Post e) -> {
+                        com.dwinovo.numen.core.tools.SpeakTool.tickAll();
+                        com.dwinovo.numen.core.social.VoiceScheduler.clientTick();
+                    });
         }
 
         Constants.LOG.info("numen-core initialised on NeoForge.");

@@ -59,6 +59,53 @@ public final class SpeakTool implements NumenTool {
 
     private record Args(String text, Boolean voice) {}
 
+    /**
+     * 公共说话入口——台词功能(VoiceScheduler)与 speak 工具共用同一条管线:
+     * 聊天框一行 + 头顶气泡 + 声线语音(绑定声线才说,句子在 pipeline 里排队)。
+     * 纯客户端能力,只在客户端进程调用。
+     *
+     * @return true = 管线已接收(说话本身异步,播完与否由 pipeline 推进)
+     */
+    public static boolean speakLine(UUID uuid, String text) {
+        return speakLine(uuid, text, true);
+    }
+
+    /** {@link #speakLine(UUID, String)} 的带语音开关版本。 */
+    public static boolean speakLine(UUID uuid, String text, boolean wantVoice) {
+        if (uuid == null || text == null || text.isBlank()) {
+            return false;
+        }
+        String line = text.strip();
+        String name = NumenRoster.instance().name(uuid);
+        if (name == null) {
+            name = "Numen";
+        }
+        // 聊天框一行(定格行,同内建回复格式)。
+        ChatLines.companion(name, line);
+
+        // 头顶气泡:客户端 → 服务端,服务端校验主人后转发给附近玩家(含主人)。
+        String capped = line.length() > SpeechBubblePayload.MAX_TEXT / 2 - 4
+                ? line.substring(0, SpeechBubblePayload.MAX_TEXT / 2 - 4)
+                : line;
+        Services.NETWORK.sendToServer(new SpeechBubblePayload(
+                uuid, SpeechBubblePayload.KIND_TEXT, capped));
+
+        // 语音:绑定了声线才说。每同伴复用一个 pipeline——连续说话时句子自然排队。
+        if (wantVoice) {
+            VoiceLibrary.Entry cfg = VoiceLibrary.instance().resolve(uuid);
+            if (cfg != null) {
+                VoicePipeline vp = PIPES.get(uuid);
+                if (vp == null) {
+                    vp = new VoicePipeline(uuid);
+                    vp.beginTurn(cfg);
+                    PIPES.put(uuid, vp);
+                }
+                vp.speak(line);
+            }
+        }
+        return true;
+    }
+
     @Override
     public String name() {
         return "speak";
@@ -101,35 +148,7 @@ public final class SpeakTool implements NumenTool {
             return;
         }
         try {
-            String name = NumenRoster.instance().name(uuid);
-            if (name == null) {
-                name = "Numen";
-            }
-
-            // 聊天框一行(定格行,同内建回复格式)。
-            ChatLines.companion(name, text);
-
-            // 头顶气泡:客户端 → 服务端,服务端校验主人后转发给附近玩家(含主人)。
-            String capped = text.length() > SpeechBubblePayload.MAX_TEXT / 2 - 4
-                    ? text.substring(0, SpeechBubblePayload.MAX_TEXT / 2 - 4)
-                    : text;
-            Services.NETWORK.sendToServer(new SpeechBubblePayload(
-                    uuid, SpeechBubblePayload.KIND_TEXT, capped));
-
-            // 语音:绑定了声线才说。每同伴复用一个 pipeline——连续调 speak 时
-            // 句子自然排队,前句播完才起后句,不叠音(节奏由语音时长决定)。
-            if (wantVoice) {
-                VoiceLibrary.Entry cfg = VoiceLibrary.instance().resolve(uuid);
-                if (cfg != null) {
-                    VoicePipeline vp = PIPES.get(uuid);
-                    if (vp == null) {
-                        vp = new VoicePipeline(uuid);
-                        vp.beginTurn(cfg);   // 首次:绑定声线(打断的是自己的空队列)
-                        PIPES.put(uuid, vp);
-                    }
-                    vp.speak(text);
-                }
-            }
+            speakLine(uuid, text, wantVoice);
             call.complete(TaskResult.ok("说完了。" + (wantVoice ? "" : "(文字模式)"),
                     Map.of("spoken", true)).toJson());
         } catch (Throwable t) {
