@@ -149,10 +149,11 @@ public class NumenCoreNeoForge {
         // this never runs on a dedicated server.
         if (FMLLoader.getCurrent().getDist() == Dist.CLIENT) {
             declareBundledSkills();
-            // 场景台词(环境语音):加载 config/numen/voices.json 覆盖默认台词表。
+            // 场景台词(环境语音):扫 config/numen/ 目录——voices.json 覆盖全局,
+            // voices-<角色名>.json 给该角色专属台词(按召唤名匹配)。
             com.dwinovo.numen.core.social.VoiceLines.loadConfig(
                     net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()
-                            .resolve("numen").resolve("voices.json"));
+                            .resolve("numen"));
             // speak 工具的声音管线:播放接续靠每客户端 tick 推进(上一句播完自动起下一句)。
             // 场景台词调度也在同一 tick 驱动。服务端没有语音,不注册(客户端事件类只在客户端触碰)。
             NeoForge.EVENT_BUS.addListener(

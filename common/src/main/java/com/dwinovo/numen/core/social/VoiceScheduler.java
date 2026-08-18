@@ -139,7 +139,8 @@ public final class VoiceScheduler {
     }
 
     private static void speak(NumenRoster.Entry entry, VoiceLines.Scene scene) {
-        String line = VoiceLines.pick(scene);
+        // 按角色名挑台词:有专属 voices-<角色名>.json 用专属,否则回落全局/内置。
+        String line = VoiceLines.pick(entry.name(), scene);
         if (line != null) {
             SpeakTool.speakLine(entry.uuid(), line);
         }
