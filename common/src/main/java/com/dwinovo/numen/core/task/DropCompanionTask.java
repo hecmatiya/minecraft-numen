@@ -36,19 +36,26 @@ public final class DropCompanionTask extends AbstractCompanionTask<DropItemsTask
     @Override
     protected void onStart() {
         Inventory inv = player.getInventory();
-        int have = PlayerInv.count(inv, r.item);
-        dropped = Math.min(r.count, have);
-        PlayerInv.remove(inv, r.item, dropped);
+        dropped = Math.min(r.count, PlayerInv.count(inv, r.item));
 
         // Toss like a real player: native Player.drop(stack, false) throws each stack in the facing
         // direction with vanilla motion + pickup delay and fires the drop event (mods watching item
         // tosses see it) — instead of hand-building an ItemEntity with a made-up velocity.
-        int max = new ItemStack(r.item).getMaxStackSize();
+        //
+        // 按槽位取背包里真实的那一叠(带完整 NBT),丢它的副本——附魔/耐久/自定义名
+        // 全都随物品走。以前是 new ItemStack(item, n) 凭空造,附魔和耐久会丢。
         int remaining = dropped;
-        while (remaining > 0) {
-            int lump = Math.min(remaining, max);
-            remaining -= lump;
-            player.drop(new ItemStack(r.item, lump), false);
+        for (int slot = 0; slot < inv.getContainerSize() && remaining > 0; slot++) {
+            ItemStack stack = inv.getItem(slot);
+            if (stack.isEmpty() || stack.getItem() != r.item) {
+                continue;
+            }
+            int take = Math.min(remaining, stack.getCount());
+            ItemStack toss = stack.copy();   // 完整副本:NBT 原样保留
+            toss.setCount(take);
+            stack.shrink(take);              // 背包里同步扣掉
+            remaining -= take;
+            player.drop(toss, false);
         }
         doneMessage = "dropped " + dropped + "x " + r.label
                 + (dropped < r.count ? " (only had " + dropped + ")" : "");
