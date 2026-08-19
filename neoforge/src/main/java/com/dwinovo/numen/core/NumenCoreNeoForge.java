@@ -37,27 +37,31 @@ public class NumenCoreNeoForge {
                         .resolve("numen").resolve("ready.json"));
 
         NeoForge.EVENT_BUS.addListener(NumenCoreNeoForge::onServerTickPost);
-        // 玩家动作 → 社交信号(事件式):右键点同伴 = 送东西/搭话;攻击同伴 = 冒犯。
+        // 玩家动作 → 社交信号(事件式):右键点同伴 = 搭话;潜行+右键 = 送东西;攻击同伴 = 冒犯。
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.EntityInteract e) -> {
             if (e.getEntity().level().isClientSide()) return;   // 客户端预测事件,服务端才是权威
             if (e.getTarget() instanceof com.dwinovo.numen.entity.NumenPlayer companion) {
                 // MC 原版对玩家实体右键没有任何效果,所以"送礼"由本 mod 实现。
                 // 只认真人玩家发起(排除同伴自己/其他同伴——agent 的工具调用
                 // 走 NumenPlayer 身体,不能让它顺手把物品转走)。
+                // 误触防护:必须潜行+右键才转移物品;普通右键只算搭话(记 GIFT 信号),
+                // 拿剑不小心点到她不会再把手上的东西送出去。
                 if (e.getEntity() instanceof net.minecraft.server.level.ServerPlayer owner
                         && !(e.getEntity() instanceof com.dwinovo.numen.entity.NumenPlayer)) {
-                    net.minecraft.world.item.ItemStack hand = owner.getMainHandItem();
-                    if (!hand.isEmpty()) {
-                        net.minecraft.world.item.ItemStack give = hand.copy();
-                        give.setCount(1);
-                        hand.shrink(1);
-                        if (!companion.getInventory().add(give) && !give.isEmpty()) {
-                            companion.drop(give, true);   // 背包满了,剩余掉她脚边
+                    if (owner.isCrouching()) {
+                        net.minecraft.world.item.ItemStack hand = owner.getMainHandItem();
+                        if (!hand.isEmpty()) {
+                            net.minecraft.world.item.ItemStack give = hand.copy();
+                            give.setCount(1);
+                            hand.shrink(1);
+                            if (!companion.getInventory().add(give) && !give.isEmpty()) {
+                                companion.drop(give, true);   // 背包满了,剩余掉她脚边
+                            }
+                            Constants.LOG.info("[numen-core] {} gave 1x {} to companion {}",
+                                    owner.getName().getString(),
+                                    net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(give.getItem()).getPath(),
+                                    companion.getUUID());
                         }
-                        Constants.LOG.info("[numen-core] {} gave 1x {} to companion {}",
-                                owner.getName().getString(),
-                                net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(give.getItem()).getPath(),
-                                companion.getUUID());
                     }
                 }
                 com.dwinovo.numen.core.social.SocialSignals.record(companion.getUUID(),
