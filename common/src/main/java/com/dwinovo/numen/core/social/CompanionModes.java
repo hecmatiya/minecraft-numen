@@ -28,6 +28,14 @@ public final class CompanionModes {
     /** 每同伴的当前空闲模式(没记录 = 默认挂机)。 */
     private static final Map<UUID, Mode> MODES = new HashMap<>();
 
+    /** 任务刚结束的宽限(tick):身体闲下来后要连续闲这么久才自动回陪伴。
+     *  给大脑一个重新派活的窗口——否则"任务一收工就秒速贴到主人身边",
+     *  挖矿这种一件接一件的场景,观感就是"挖着挖着朝我走"。 */
+    private static final int IDLE_GRACE_TICKS = 100;
+
+    /** 每同伴最后一次"车道忙"的游戏刻——宽限期的起点(没记录 = 早就闲着)。 */
+    private static final Map<UUID, Long> LAST_BUSY = new HashMap<>();
+
     private CompanionModes() {}
 
     public static Mode modeOf(UUID companionUuid) {
@@ -46,12 +54,21 @@ public final class CompanionModes {
      * 状态机不掐它(companion_mode 切到 idle 时才当场撤陪伴)。
      */
     public static void tickAutoRestore(MinecraftServer server) {
+        long now = server.overworld().getGameTime();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (!(p instanceof NumenPlayer companion)) {
                 continue;
             }
             UUID cid = companion.getUUID();
+            // 车道有活(在跑或排队,同步异步都算) = 忙:刷新忙刻,绝不插陪伴任务。
+            // 比旧的 asyncTaskFor==null 更严——排队中的下一件活也算忙,
+            // 堵上"任务刚结束、新活还没起跑"的窗口。
+            if (com.dwinovo.numen.task.CompanionTickDispatcher.llmLaneBusy(cid)) {
+                LAST_BUSY.put(cid, now);
+                continue;
+            }
             if (modeOf(cid) == Mode.COMPANY
+                    && now - LAST_BUSY.getOrDefault(cid, 0L) >= IDLE_GRACE_TICKS
                     && com.dwinovo.numen.task.CompanionTickDispatcher.asyncTaskFor(cid) == null) {
                 com.dwinovo.numen.task.TaskDispatch.dispatchAsync(companion,
                         new com.dwinovo.numen.core.task.CompanyTaskRecord("restore", null, null),

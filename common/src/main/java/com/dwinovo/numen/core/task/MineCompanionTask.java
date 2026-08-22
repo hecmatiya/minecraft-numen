@@ -151,6 +151,11 @@ public final class MineCompanionTask extends AbstractCompanionTask<MineBlockTask
     private int noShotTicks;
     /** Consecutive ARRIVED-dud ticks (arrived at a stance but nothing mineable in place). */
     private int arrivedDudTicks;
+    /** 连续 NO_PATH 黑名单计数——黑名单风暴止损(见 {@link #MAX_CONSECUTIVE_NO_PATH})。
+     *  目标全在脚下/墙后时,NAV FAILED 会以约 2 秒一个的速度空转黑名单到名单耗尽,
+     *  主人视角就是"挖矿指令没生效"。连黑到阈值直接如实失败收工。 */
+    private static final int MAX_CONSECUTIVE_NO_PATH = 8;
+    private int consecutiveNavFails;
     /** 上一次索引查询是否覆盖完整(构建预算未耗尽)。false = 冷区域仍在渐进构建,
      *  终局判定("附近没有目标")必须等它为 true 才能下。 */
     private boolean lastQueryComplete;
@@ -289,7 +294,10 @@ public final class MineCompanionTask extends AbstractCompanionTask<MineBlockTask
                 navIsBranch = false;
             }
             switch (nav.tick()) {
-                case RUNNING -> { return TaskState.RUNNING; }
+                case RUNNING -> {
+                    consecutiveNavFails = 0;   // 导航在正常前进 = 没卡死,风暴计数归零
+                    return TaskState.RUNNING;
+                }
                 case ARRIVED -> {
                     // Arrival normally means an in-place target just became reachable — next tick step 1
                     // pauses the nav and digs. Only clear inputs here (pause), never tear the nav down:
@@ -337,6 +345,20 @@ public final class MineCompanionTask extends AbstractCompanionTask<MineBlockTask
                             nav.failType(), nav.failReason(), nearestOreInfo());
                     blacklistNearest();
                     stopNav();
+                    // [ANCHOR no-path-storm-stop] 止损:连续 NO_PATH 意味着剩下最近的目标
+                    // 全都走不到(典型:房间地板下面/墙后的石头)。黑名单风暴空转到名单
+                    // 耗尽,期间身体不动、主人以为"没在挖"——连黑到阈值如实失败,
+                    // 把"换范围/换策略/换工具"的选择权交回大脑。
+                    if (++consecutiveNavFails >= MAX_CONSECUTIVE_NO_PATH) {
+                        com.dwinovo.numen.Constants.LOG.info(
+                                "[numen-task] mine NO_PATH storm: {} consecutive blacklists — giving up (gathered {})",
+                                consecutiveNavFails, r.getMined());
+                        fail("连续 " + consecutiveNavFails + " 个最近目标都找不到路(NO_PATH),已止损收工"
+                                        + " — 目标多半在脚下/墙后够不到; gathered " + r.getMined()
+                                        + ", blacklisted " + blacklist.size() + " so far",
+                                FailureType.NO_PATH);
+                        return TaskState.FAILED;
+                    }
                     return TaskState.RUNNING;
                 }
             }
@@ -353,7 +375,10 @@ public final class MineCompanionTask extends AbstractCompanionTask<MineBlockTask
         //    finish with whatever we gathered (the tool's contract: "fewer than count
         //    in range still succeeds"), rather than running off across the world.
         if (!EXPLORE_FOR_BLOCKS) {
-            if (r.getMined() > 0) {
+            // 黑名单非空时"范围内没有了"是谎报:目标是走不到,不是不存在。
+            // 之前一律报 SUCCESS("no more in range"),大脑信了就不会重试,
+            // 主人看到的就是"挖到一半收工"。如实失败,把选择权交回大脑。
+            if (r.getMined() > 0 && blacklist.isEmpty()) {
                 progressNote = "gathered " + r.getMined() + "/" + r.count + ", no more " + r.label + " in range";
                 return TaskState.SUCCESS;
             }
@@ -646,6 +671,7 @@ public final class MineCompanionTask extends AbstractCompanionTask<MineBlockTask
             case BROKE_TARGET -> {
                 knownOres.remove(pos);
                 brokenTargets++;
+                consecutiveNavFails = 0;   // 挖到目标 = 实打实进度,风暴计数归零
                 if (WorkProfile.of(player).dropsLoot()) {
                     // 无掉落画像不登记逗留格:等一个永不出现的掉落物只会来回绕路
                     anticipatedDrops.put(pos.immutable(),
@@ -869,9 +895,9 @@ public final class MineCompanionTask extends AbstractCompanionTask<MineBlockTask
             return TaskState.FAILED;
         }
         if (!blacklist.isEmpty()) {
-            fail("found " + blacklist.size() + " " + r.label + " nearby but reached none of them"
-                    + " — all " + blacklist.size()
-                    + " were blacklisted as unreachable (no path / no clear shot); gathered 0",
+            fail(blacklist.size() + " " + r.label
+                    + " were blacklisted as unreachable (no path / no clear shot) and none are left;"
+                    + " gathered " + r.getMined(),
                     FailureType.NO_PATH);
         } else {
             fail("no reachable " + r.label + " found in the loaded area around me",
