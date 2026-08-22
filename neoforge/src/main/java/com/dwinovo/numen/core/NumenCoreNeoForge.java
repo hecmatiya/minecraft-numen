@@ -164,7 +164,12 @@ public class NumenCoreNeoForge {
                     (net.neoforged.neoforge.client.event.ClientTickEvent.Post e) -> {
                         com.dwinovo.numen.core.tools.SpeakTool.tickAll();
                         com.dwinovo.numen.core.social.VoiceScheduler.clientTick();
+                        com.dwinovo.numen.core.social.CompanionCamera.clientTick();
                     });
+            // F8 同伴视角键位(纯客户端)。
+            eventBus.addListener(
+                    (net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent e) ->
+                            e.register(com.dwinovo.numen.core.social.CompanionCamera.KEY));
         }
 
         Constants.LOG.info("numen-core initialised on NeoForge.");
